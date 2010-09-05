@@ -112,51 +112,35 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
 
   // Every edge represents a pair of net-devices and 
   // a channel connecting them.  will create new devices
-
+  PointToPointHelper ptp;
+  ptp.SetDeviceAttribute ("DataRate", StringValue ("10Gbps"));
+  ptp.SetChannelAttribute ("Delay", StringValue ("300ns"));
+  
   EACH(e, g.edges) {
     int from = (*e).first.id, to = (*e).second.id;
-
-    LET(dev_from, Create<PointToPointNetDevice>());
-    LET(dev_to, Create<PointToPointNetDevice>());
-
-    LET(q_from, Create<ProxyQueue>());
-    LET(q_to, Create<ProxyQueue>());
-
-    dev_from->SetDataRate(DataRate("10Gbps"));
-    dev_from->SetAddress(Mac48Address::Allocate());
-    hosts[from].node->AddDevice(dev_from);
-    dev_from->SetQueue(q_from);
-    
-    dev_to->SetDataRate(DataRate("10Gbps"));
-    dev_to->SetAddress(Mac48Address::Allocate());
-    hosts[to].node->AddDevice(dev_to);
-    dev_to->SetQueue(q_to);
-
-    LET(chan, Create<PointToPointChannel>());
-    chan->Attach(dev_from);
-    chan->Attach(dev_to);
-
-    
-    hosts[from].intfs.Add(dev_from);
-    hosts[to].intfs.Add(dev_to);
+    LET(container, ptp.Install(NodeContainer(nodes.Get(from), nodes.Get(to))));
+    hosts[from].intfs.Add(container.Get(0));
+    hosts[to].intfs.Add(container.Get(1));
   }
 
   // Install the inet stack on all hosts
   InternetStackHelper internet;
+  Ipv4GlobalRoutingHelper glob;
+  internet.SetRoutingHelper(glob);
   internet.Install(nodes);
   
   // Configure the IP addresses of all the nodes (hosts only)
   Ipv4AddressHelper ipv4;
-  ipv4.SetBase("10.0.0.0", "255.0.0.0");
+  ipv4.SetBase("10.0.0.0", "255.255.255.0");
   
   REP(i, g.nodes.size()) {
     // Assign ip address to the net devices
     // only on the hosts
     hosts[i].inet = ipv4.Assign(hosts[i].intfs);
   }
-
-  //GlobalRouteManager::BuildGlobalRoutingDatabase();
-
+  
+  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+  
   // An example of how nodes can be queried for information
   REP(i, g.nodes.size()) {
     LET(n, nodes.Get(i));
@@ -169,7 +153,6 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
     out << "MTU: " << hosts[i].intfs.Get(0)->GetMtu() << " ";
     puts(out.str().c_str());
   }
-
   
   // Run a UDP client test
   LogComponentEnable("UdpEchoClientApplication", LOG_LEVEL_INFO);
@@ -181,7 +164,7 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   serverApps.Stop (Seconds (10.0));
   
   UdpEchoClientHelper echoClient (hosts[1].inet.GetAddress(0), 9);
-  echoClient.SetAttribute ("MaxPackets", UintegerValue (1));
+  echoClient.SetAttribute ("MaxPackets", UintegerValue (2));
   echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.)));
   echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
   
