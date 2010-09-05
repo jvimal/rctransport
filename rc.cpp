@@ -74,7 +74,7 @@ struct NS3Graph {
   
   struct NS3Node {
     bool is_switch;
-    vector< Ptr<BridgeNetDevice> > br;     // will be null for end hosts
+    BridgeNetDevice br;     // will be null for end hosts
     Ptr<Node> node;
     NetDeviceContainer intfs;    // the interfaces on the host
     Ipv4InterfaceContainer inet; // the inet stacks on all the intfs
@@ -86,17 +86,6 @@ struct NS3Graph {
   NS3Graph(){}
   NS3Graph(const RC::Graph &);
 };
-
-Mac48Address NextMacAddress() {
-  static unsigned long long count = 0;
-  static unsigned char *addr = (unsigned char *)(&count);
-  static char buff[128];
-  count++;
-  sprintf(buff, "%x:%x:%x:%x:%x:%x", 
-          addr[5], addr[4], addr[3],
-          addr[2], addr[1], addr[0]);
-  return Mac48Address(buff);
-}
 
 NS3Graph::NS3Graph(const RC::Graph &_g) {
   g = _g;
@@ -112,9 +101,10 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
 
   // Every edge represents a pair of net-devices and 
   // a channel connecting them.  will create new devices
-  PointToPointHelper ptp;
-  ptp.SetDeviceAttribute ("DataRate", StringValue ("10Gbps"));
+  CsmaHelper ptp;
+  ptp.SetChannelAttribute ("DataRate" , StringValue ("10Gbps"));
   ptp.SetChannelAttribute ("Delay", StringValue ("300ns"));
+  ptp.SetQueue("ns3::ProxyQueue");
   
   EACH(e, g.edges) {
     int from = (*e).first.id, to = (*e).second.id;
@@ -125,8 +115,9 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
 
   // Install the inet stack on all hosts
   InternetStackHelper internet;
-  Ipv4GlobalRoutingHelper glob;
-  internet.SetRoutingHelper(glob);
+  // Enable this for routed network
+  //Ipv4GlobalRoutingHelper glob;
+  //internet.SetRoutingHelper(glob);
   internet.Install(nodes);
   
   // Configure the IP addresses of all the nodes (hosts only)
@@ -137,9 +128,17 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
     // Assign ip address to the net devices
     // only on the hosts
     hosts[i].inet = ipv4.Assign(hosts[i].intfs);
+
+    // disable this for routed network
+    if(hosts[i].is_switch) {
+      BridgeHelper bridge;
+      bridge.Install(hosts[i].node, hosts[i].intfs);
+    }
   }
   
-  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+  // Enable this only if we want a routed network instead
+  // of a switched network
+  //Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
   
   // An example of how nodes can be queried for information
   REP(i, g.nodes.size()) {
@@ -171,7 +170,6 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   ApplicationContainer clientApps = echoClient.Install (nodes.Get(0));
   clientApps.Start (Seconds (2.0));
   clientApps.Stop (Seconds (10.0));
-  
 }
   
 int main(int argc, char *argv[]) {

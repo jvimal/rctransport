@@ -11,9 +11,9 @@
 #include "ns3/enum.h"
 #include "ns3/uinteger.h"
 
-NS_LOG_COMPONENT_DEFINE ("ProxyQueue");
 
 namespace ns3 {
+NS_LOG_COMPONENT_DEFINE ("ProxyQueue");
 
 class TraceContainer;
   
@@ -120,7 +120,7 @@ bool
 ProxyQueue::DoEnqueue (Ptr<Packet> p)
 {
   NS_LOG_FUNCTION (this << p);
-
+  
   if (m_mode == PACKETS && (m_packets.size () >= m_maxPackets))
     {
       NS_LOG_LOGIC ("Queue full (at max packets) -- droppping pkt");
