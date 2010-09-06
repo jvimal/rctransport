@@ -11,13 +11,12 @@
 #include "ns3/enum.h"
 #include "ns3/uinteger.h"
 
-
-namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("ProxyQueue");
+namespace ns3 {
 
 class TraceContainer;
   
- class ProxyQueue : public Queue {
+class ProxyQueue : public Queue {
  public:
   static TypeId GetTypeId (void);
   ProxyQueue ();
@@ -48,7 +47,9 @@ class TraceContainer;
    * \returns The encapsulation mode of this device.
    */
   ProxyQueue::Mode  GetMode (void);
-
+  void SetQueueTrace(const CallbackBase &cb) {
+    m_bytesInQueue.ConnectWithoutContext(cb);
+  }
 private:
   virtual bool DoEnqueue (Ptr<Packet> p);
   virtual Ptr<Packet> DoDequeue (void);
@@ -57,18 +58,20 @@ private:
   std::queue<Ptr<Packet> > m_packets;
   uint32_t m_maxPackets;
   uint32_t m_maxBytes;
-  uint32_t m_bytesInQueue;
+  TracedValue<uint32_t> m_bytesInQueue;
   Mode     m_mode;
 };
 
 NS_OBJECT_ENSURE_REGISTERED (ProxyQueue);
-
 
 TypeId ProxyQueue::GetTypeId (void) 
 {
   static TypeId tid = TypeId ("ns3::ProxyQueue")
     .SetParent<Queue> ()
     .AddConstructor<ProxyQueue> ()
+    .AddTraceSource ("QueueLength", 
+                     "The length of the queue.", 
+                     MakeTraceSourceAccessor(&ProxyQueue::m_bytesInQueue))
     .AddAttribute ("Mode", 
                    "Whether to use Bytes (see MaxBytes) or Packets (see MaxPackets) as the maximum queue size metric.",
                    EnumValue (PACKETS),
