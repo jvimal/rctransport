@@ -8,8 +8,11 @@
 #include "ns3/ipv4-global-routing.h"
 #include "ns3/global-route-manager.h"
 #include "ns3/mac48-address.h"
+#include "ns3/simulator.h"
+#include "ns3/csma-net-device.h"
 
 #include "proxyqueue.h"
+
 using namespace ns3;
 
 #include <iostream>
@@ -74,9 +77,10 @@ struct NS3Graph {
   
   struct NS3Node {
     bool is_switch;
-    BridgeNetDevice br;     // will be null for end hosts
+    BridgeNetDevice br;          // will be null for end hosts
     Ptr<Node> node;
     NetDeviceContainer intfs;    // the interfaces on the host
+    vector< Ptr<ProxyQueue> > queues; // the transmit queues on the host
     Ipv4InterfaceContainer inet; // the inet stacks on all the intfs
   };
 
@@ -86,6 +90,10 @@ struct NS3Graph {
   NS3Graph(){}
   NS3Graph(const RC::Graph &);
 };
+
+void cb(uint32_t old, uint32_t neew) {
+  cout << Simulator::Now().GetSeconds() << "\t" << neew << endl;
+}
 
 NS3Graph::NS3Graph(const RC::Graph &_g) {
   g = _g;
@@ -102,16 +110,28 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   // Every edge represents a pair of net-devices and 
   // a channel connecting them.  will create new devices
   CsmaHelper ptp;
-  ptp.SetChannelAttribute ("DataRate" , StringValue ("10Gbps"));
-  ptp.SetChannelAttribute ("Delay", StringValue ("300ns"));
-  ptp.SetQueue("ns3::ProxyQueue");
-  
+  ptp.SetChannelAttribute ("DataRate" , StringValue ("1Gbps"));
+  //ptp.SetChannelAttribute ("Delay", StringValue ("300ns"));
+  //ptp.SetQueue("ns3::ProxyQueue"); // doesn't work, i dunno why
+   
   EACH(e, g.edges) {
     int from = (*e).first.id, to = (*e).second.id;
     LET(container, ptp.Install(NodeContainer(nodes.Get(from), nodes.Get(to))));
     hosts[from].intfs.Add(container.Get(0));
     hosts[to].intfs.Add(container.Get(1));
+    int which[] = {from, to};
+
+    REP(i, 2) {
+      LET(a, PeekPointer(container.Get(i)));
+      LET(q, Create<ProxyQueue>());
+      static_cast<CsmaNetDevice*>(a)->SetQueue(q);
+      hosts[ which[i] ].queues.push_back(q);
+    }
   }
+  
+  /* Create a trace for host 6 (switch) and queue 5 */
+  hosts[6].queues[5]
+    ->SetQueueTrace(MakeCallback(&cb));
 
   // Install the inet stack on all hosts
   InternetStackHelper internet;
@@ -139,37 +159,14 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   // Enable this only if we want a routed network instead
   // of a switched network
   //Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-  
-  // An example of how nodes can be queried for information
-  REP(i, g.nodes.size()) {
-    LET(n, nodes.Get(i));
-    ostringstream out;
-    out << "Node " << i << " has " << n->GetNDevices() << " devices ";
-    //if(not hosts[i].is_switch)
-    out << hosts[i].inet.GetAddress(0) << " ";
-    out << "Link up? " << hosts[i].intfs.Get(0)->IsLinkUp() << " ";
-    out << "Address: " << hosts[i].intfs.Get(0)->GetAddress() << " ";
-    out << "MTU: " << hosts[i].intfs.Get(0)->GetMtu() << " ";
-    puts(out.str().c_str());
-  }
-  
-  // Run a UDP client test
-  LogComponentEnable("UdpEchoClientApplication", LOG_LEVEL_INFO);
-  LogComponentEnable("UdpEchoServerApplication", LOG_LEVEL_INFO);
-  UdpEchoServerHelper echoServer (9);
-  ApplicationContainer serverApps = echoServer.Install (nodes.Get(1));
-  
-  serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (10.0));
-  
-  UdpEchoClientHelper echoClient (hosts[1].inet.GetAddress(0), 9);
-  echoClient.SetAttribute ("MaxPackets", UintegerValue (2));
-  echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.)));
-  echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
-  
-  ApplicationContainer clientApps = echoClient.Install (nodes.Get(0));
-  clientApps.Start (Seconds (2.0));
-  clientApps.Stop (Seconds (10.0));
+
+  UdpClientHelper udp_client(Ipv4Address("10.0.0.6"), 10);
+  udp_client.SetAttribute("MaxPackets", StringValue("200"));
+  udp_client.SetAttribute("Interval", StringValue("0.1us"));
+  udp_client.SetAttribute("StartTime", StringValue("0"));
+  udp_client.SetAttribute("StopTime", StringValue("5s"));
+
+  udp_client.Install(NodeContainer(nodes.Get(0), nodes.Get(1)));
 }
   
 int main(int argc, char *argv[]) {
