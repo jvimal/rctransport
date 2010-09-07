@@ -85,7 +85,7 @@ TypeId ProxyQueue::GetTypeId (void)
                    MakeUintegerChecker<uint32_t> ())
     .AddAttribute ("MaxBytes", 
                    "The maximum number of bytes accepted by this ProxyQueue.",
-                   UintegerValue (100 * 65535),
+                   UintegerValue (1<<20),
                    MakeUintegerAccessor (&ProxyQueue::m_maxBytes),
                    MakeUintegerChecker<uint32_t> ())
     ;
