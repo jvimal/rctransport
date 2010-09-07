@@ -111,7 +111,7 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   // a channel connecting them.  will create new devices
   CsmaHelper ptp;
   ptp.SetChannelAttribute ("DataRate" , StringValue ("1Gbps"));
-  //ptp.SetChannelAttribute ("Delay", StringValue ("300ns"));
+  //ptp.SetChannelAttribute ("Delay", StringValue ("1us"));
   //ptp.SetQueue("ns3::ProxyQueue"); // doesn't work, i dunno why
    
   EACH(e, g.edges) {
@@ -129,10 +129,6 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
     }
   }
   
-  /* Create a trace for host 6 (switch) and queue 5 */
-  hosts[6].queues[5]
-    ->SetQueueTrace(MakeCallback(&cb));
-
   // Install the inet stack on all hosts
   InternetStackHelper internet;
   // Enable this for routed network
@@ -142,7 +138,7 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   
   // Configure the IP addresses of all the nodes (hosts only)
   Ipv4AddressHelper ipv4;
-  ipv4.SetBase("10.0.0.0", "255.255.255.0");
+  ipv4.SetBase("10.0.0.0", "255.0.0.0");
   
   REP(i, g.nodes.size()) {
     // Assign ip address to the net devices
@@ -159,19 +155,51 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   // Enable this only if we want a routed network instead
   // of a switched network
   //Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-
-  UdpClientHelper udp_client(Ipv4Address("10.0.0.6"), 10);
-  udp_client.SetAttribute("MaxPackets", StringValue("200"));
-  udp_client.SetAttribute("Interval", StringValue("0.1us"));
-  udp_client.SetAttribute("StartTime", StringValue("0"));
-  udp_client.SetAttribute("StopTime", StringValue("5s"));
-
-  udp_client.Install(NodeContainer(nodes.Get(0), nodes.Get(1)));
 }
+
+void setup_experiment(NS3Graph &g) {
+  /* Create a trace for host 6 (switch) and queue 5 */
+  g.hosts[6].queues[5]
+    ->SetQueueTrace(MakeCallback(&cb));
   
+  /* Setup a tcp packet source at hosts 0 and 1 */
+  // Create the OnOff applications to send TCP to the server
+  OnOffHelper clientHelper ("ns3::TcpSocketFactory", Address ());
+  clientHelper.SetAttribute
+
+    ("OnTime", RandomVariableValue (ConstantVariable (1)));
+  clientHelper.SetAttribute
+    ("OffTime", RandomVariableValue (ConstantVariable (0)));
+  ApplicationContainer client_apps;
+  
+  for(int i = 0; i < 3; i ++) {
+    AddressValue remoteAddress(InetSocketAddress(Ipv4Address("10.0.0.6"), 5000));
+    clientHelper.SetAttribute("Remote", remoteAddress);
+    clientHelper.SetAttribute("DataRate", StringValue("0.1Gbps"));
+    clientHelper.SetAttribute("PacketSize", StringValue("1000"));
+    client_apps.Add(clientHelper.Install(g.hosts[i].node));
+  }
+
+  client_apps.Start(Seconds(0.2));
+  client_apps.Stop(Seconds(0.5));
+
+  /* Setup a packet sink at host 6, at port 5000 */
+  uint16_t port = 5000;
+  Address sinkLocalAddress(InetSocketAddress (Ipv4Address::GetAny (), port));
+  PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
+  ApplicationContainer sinkApp = sinkHelper.Install (g.hosts[5].node);
+  sinkApp.Start (Seconds (0));
+  sinkApp.Stop (Seconds (0.5));
+  /* Dump traces */
+  //CsmaHelper().EnablePcapAll ("temp", false);
+}
+
+
 int main(int argc, char *argv[]) {
   RC::Graph g = RC::dumbell(5, 1);
   NS3Graph ns3g(g);
+  setup_experiment(ns3g);
+  Simulator::Stop(Seconds(1));
   Simulator::Run();
   Simulator::Destroy();
   return 0;
