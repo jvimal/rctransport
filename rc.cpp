@@ -110,8 +110,8 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   // Every edge represents a pair of net-devices and 
   // a channel connecting them.  will create new devices
   CsmaHelper ptp;
-  ptp.SetChannelAttribute ("DataRate" , StringValue ("1Gbps"));
-  //ptp.SetChannelAttribute ("Delay", StringValue ("1us"));
+  ptp.SetChannelAttribute ("DataRate" , StringValue ("100Mbps"));
+  ptp.SetChannelAttribute ("Delay", StringValue ("300ns"));
   //ptp.SetQueue("ns3::ProxyQueue"); // doesn't work, i dunno why
    
   EACH(e, g.edges) {
@@ -124,6 +124,8 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
     REP(i, 2) {
       LET(a, PeekPointer(container.Get(i)));
       LET(q, Create<ProxyQueue>());
+      q->SetMode(ProxyQueue::PACKETS);
+      q->SetMaxPackets(20);
       static_cast<CsmaNetDevice*>(a)->SetQueue(q);
       hosts[ which[i] ].queues.push_back(q);
     }
@@ -166,21 +168,20 @@ void setup_experiment(NS3Graph &g) {
   // Create the OnOff applications to send TCP to the server
   OnOffHelper clientHelper ("ns3::TcpSocketFactory", Address ());
   clientHelper.SetAttribute
-
     ("OnTime", RandomVariableValue (ConstantVariable (1)));
   clientHelper.SetAttribute
     ("OffTime", RandomVariableValue (ConstantVariable (0)));
   ApplicationContainer client_apps;
   
-  for(int i = 0; i < 3; i ++) {
+  for(int i = 0; i < 2; i ++) {
     AddressValue remoteAddress(InetSocketAddress(Ipv4Address("10.0.0.6"), 5000));
     clientHelper.SetAttribute("Remote", remoteAddress);
-    clientHelper.SetAttribute("DataRate", StringValue("0.1Gbps"));
-    clientHelper.SetAttribute("PacketSize", StringValue("1000"));
+    clientHelper.SetAttribute("DataRate", StringValue("20Mbps"));
+    clientHelper.SetAttribute("PacketSize", StringValue("1450"));
     client_apps.Add(clientHelper.Install(g.hosts[i].node));
   }
 
-  client_apps.Start(Seconds(0.2));
+  client_apps.Start(Seconds(0));
   client_apps.Stop(Seconds(0.5));
 
   /* Setup a packet sink at host 6, at port 5000 */
@@ -193,7 +194,6 @@ void setup_experiment(NS3Graph &g) {
   /* Dump traces */
   //CsmaHelper().EnablePcapAll ("temp", false);
 }
-
 
 int main(int argc, char *argv[]) {
   RC::Graph g = RC::dumbell(5, 1);

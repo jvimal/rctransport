@@ -50,6 +50,10 @@ class ProxyQueue : public Queue {
   void SetQueueTrace(const CallbackBase &cb) {
     m_bytesInQueue.ConnectWithoutContext(cb);
   }
+
+  void SetMaxPackets(uint32_t maxp) {
+    m_maxPackets = maxp;
+  }
 private:
   virtual bool DoEnqueue (Ptr<Packet> p);
   virtual Ptr<Packet> DoDequeue (void);
@@ -80,12 +84,12 @@ TypeId ProxyQueue::GetTypeId (void)
                                     PACKETS, "Packets"))
     .AddAttribute ("MaxPackets", 
                    "The maximum number of packets accepted by this ProxyQueue.",
-                   UintegerValue (100),
+                   UintegerValue (10),
                    MakeUintegerAccessor (&ProxyQueue::m_maxPackets),
                    MakeUintegerChecker<uint32_t> ())
     .AddAttribute ("MaxBytes", 
                    "The maximum number of bytes accepted by this ProxyQueue.",
-                   UintegerValue (1<<20),
+                   UintegerValue (3000),
                    MakeUintegerAccessor (&ProxyQueue::m_maxBytes),
                    MakeUintegerChecker<uint32_t> ())
     ;
@@ -111,7 +115,7 @@ ProxyQueue::SetMode (enum Mode mode)
   NS_LOG_FUNCTION (mode);
   m_mode = mode;
 }
-
+  
   ProxyQueue::Mode
 ProxyQueue::GetMode (void)
 {
