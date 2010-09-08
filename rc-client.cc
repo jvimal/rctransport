@@ -14,7 +14,7 @@
 
 namespace ns3 {
 
-  NS_LOG_COMPONENT_DEFINE ("RCClientApplication");
+  NS_LOG_COMPONENT_DEFINE ("RCClient");
   NS_OBJECT_ENSURE_REGISTERED (RCClient);
 
   TypeId
@@ -59,6 +59,10 @@ namespace ns3 {
     NS_LOG_FUNCTION_NOARGS();
     Application::DoDispose();
   }
+
+  void RCClient::SetResponseCallback(const CallbackBase &cb) {
+    response_trace.ConnectWithoutContext(cb);
+  }
   
   void RCClient::StartApplication() {
     NS_LOG_FUNCTION_NOARGS();
@@ -91,9 +95,13 @@ namespace ns3 {
   void RCClient::Send() {
     NS_LOG_FUNCTION_NOARGS();
     NS_ASSERT(send_event.IsExpired());
-    Ptr<Packet> p = Create<Packet>((int)request_size.GetValue());
+    int sz = (int)request_size.GetValue();
+    Ptr<Packet> p = Create<Packet>(sz);
+    NS_LOG_INFO("####### sending request of size " << sz);
     start_time = Simulator::Now();
     socket->Send(p);
+    //ScheduleTransmit(Time("0.1s"));
+    socket->SetRecvCallback(MakeCallback(&RCClient::Receive, this));
   }
 
   void RCClient::Receive(Ptr<Socket> socket) {
@@ -105,9 +113,9 @@ namespace ns3 {
         break;
       }
     }
-
+    
     response_trace(start_time, end_time);
-    ScheduleTransmit(Time(0));
+    ScheduleTransmit(Time("0"));
   }
 
 }; // end namespace

@@ -48,6 +48,7 @@ RCServer::RCServer ()
   NS_LOG_FUNCTION (this);
   m_socket = 0;
   m_totalRx = 0;
+  m_tid = TypeId::LookupByName ("ns3::TcpSocketFactory");
 }
 
 RCServer::~RCServer()
@@ -122,8 +123,11 @@ void RCServer::HandleRead (Ptr<Socket> socket)
     }
 
   // schedule write response
-  Ptr<Packet> resp = Create<Packet>((int)response_size.GetValue());
-  socket->Send(resp);
+  int resp_size = 1<<17; //(int)response_size.GetValue();
+  Ptr<Packet> resp = Create<Packet>(resp_size);
+  NS_LOG_INFO("********* sending response of size " << resp_size);
+  int r = socket->Send(resp);
+  NS_LOG_INFO("*** GOT send = " << r);
 }
 
 void RCServer::HandlePeerClose (Ptr<Socket> socket)

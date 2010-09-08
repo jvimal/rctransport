@@ -19,6 +19,7 @@ public:
   virtual ~RCClient();
 
   void SetRemote(Ipv4Address ip, uint16_t port);
+  void SetResponseCallback(const CallbackBase &cb);
   
 protected:
   virtual void DoDispose (void);
@@ -35,7 +36,6 @@ private:
 
   EventId send_event;
   TracedCallback<Time,Time> response_trace;
-
   virtual void StartApplication (void);
   virtual void StopApplication (void);
 
@@ -43,6 +43,7 @@ private:
   void Send (void);
 
   void Receive (Ptr<Socket> socket);
+
 };
 
   

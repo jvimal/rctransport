@@ -12,6 +12,8 @@
 #include "ns3/csma-net-device.h"
 
 #include "proxyqueue.h"
+#include "rc-client.h"
+#include "rc-helper.cc"
 
 using namespace ns3;
 
@@ -159,12 +161,10 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   //Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 }
 
-void setup_experiment(NS3Graph &g) {
-  /* Create a trace for host 6 (switch) and queue 5 */
-  g.hosts[6].queues[5]
-    ->SetQueueTrace(MakeCallback(&cb));
-  
-  /* Setup a tcp packet source at hosts 0 and 1 */
+void setup_cbr_traffic(NS3Graph &g, int from, int to) {
+  // setup a constant bit rate traffic between (from, to)
+  // can use TCP / UDP as needed
+
   // Create the OnOff applications to send TCP to the server
   OnOffHelper clientHelper ("ns3::TcpSocketFactory", Address ());
   clientHelper.SetAttribute
@@ -173,13 +173,13 @@ void setup_experiment(NS3Graph &g) {
     ("OffTime", RandomVariableValue (ConstantVariable (0)));
   ApplicationContainer client_apps;
   
-  for(int i = 0; i < 2; i ++) {
-    AddressValue remoteAddress(InetSocketAddress(Ipv4Address("10.0.0.6"), 5000));
-    clientHelper.SetAttribute("Remote", remoteAddress);
-    clientHelper.SetAttribute("DataRate", StringValue("20Mbps"));
-    clientHelper.SetAttribute("PacketSize", StringValue("1450"));
-    client_apps.Add(clientHelper.Install(g.hosts[i].node));
-  }
+  //  for(int i = 0; i < 1; i ++) {
+  AddressValue remoteAddress(InetSocketAddress(g.hosts[from].inet.GetAddress(0), 5000));
+  clientHelper.SetAttribute("Remote", remoteAddress);
+  clientHelper.SetAttribute("DataRate", StringValue("10Mbps"));
+  clientHelper.SetAttribute("PacketSize", StringValue("1450"));
+  client_apps.Add(clientHelper.Install(g.hosts[from].node));
+    //  }
 
   client_apps.Start(Seconds(0));
   client_apps.Stop(Seconds(0.5));
@@ -188,11 +188,47 @@ void setup_experiment(NS3Graph &g) {
   uint16_t port = 5000;
   Address sinkLocalAddress(InetSocketAddress (Ipv4Address::GetAny (), port));
   PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
-  ApplicationContainer sinkApp = sinkHelper.Install (g.hosts[5].node);
+  ApplicationContainer sinkApp = sinkHelper.Install (g.hosts[to].node);
   sinkApp.Start (Seconds (0));
   sinkApp.Stop (Seconds (0.5));
+
+}
+
+void client_cb(Time start, Time end) {
+  cout << start << ' ' << end << endl;
+}
+
+void setup_experiment(NS3Graph &g) {
+  /* Create a trace for host 6 (switch) and queue 5 */
+  //g.hosts[6].queues[5]
+  //  ->SetQueueTrace(MakeCallback(&cb));
+  
+  /* Setup a tcp packet source at hosts 0 and 1 */
+  // setup_cbr_traffic(g, 0, 1);
+
+  RCServerHelper server;
+  server.SetAttribute("Local", 
+                      AddressValue(InetSocketAddress (Ipv4Address::GetAny (), 1000)));
+  server.SetAttribute("Protocol", StringValue("ns3::TcpSocketFactory"));
+  server.SetAttribute("ResponseSize", RandomVariableValue(ParetoVariable(1000.0)));
+  LET(server_app, server.Install(g.hosts[5].node));
+
+  server_app.Start(Seconds(0));
+  server_app.Stop(Seconds(10));
+
+  RCClientHelper client;
+  client.SetAttribute("ServerAddress", StringValue("10.0.0.6"));
+  client.SetAttribute("ServerPort", StringValue("1000"));
+  LET(client_apps, client.Install(g.hosts[1].node));
+
+  client_apps.Start(Seconds(0.1));
+  client_apps.Stop(Seconds(10));
+
+  DynamicCast<RCClient>(client_apps.Get(0))
+    ->SetResponseCallback(MakeCallback(&client_cb));
+
   /* Dump traces */
-  //CsmaHelper().EnablePcapAll ("temp", false);
+  CsmaHelper().EnablePcapAll ("temp", false);
 }
 
 int main(int argc, char *argv[]) {
