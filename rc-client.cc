@@ -101,15 +101,16 @@ namespace ns3 {
     start_time = Simulator::Now();
     socket->Send(p);
     //ScheduleTransmit(Time("0.1s"));
-    socket->SetRecvCallback(MakeCallback(&RCClient::Receive, this));
+    //socket->SetRecvCallback(MakeCallback(&RCClient::Receive, this));
   }
 
   void RCClient::Receive(Ptr<Socket> socket) {
     Ptr<Packet> packet;
     Address from;
+    end_time = Simulator::Now();
+
     while(packet = socket->RecvFrom(from)) {
       if(packet->GetSize() == 0) {
-        end_time = Simulator::Now();
         break;
       }
     }

@@ -39,7 +39,7 @@ private:
   void HandleAccept (Ptr<Socket>, const Address& from);
   void HandlePeerClose(Ptr<Socket>);
   void HandlePeerError(Ptr<Socket>);
-  
+  void SendResponse(Ptr<Socket>);
   // In the case of TCP, each socket accept returns a new socket, so the 
   // listening socket is stored seperately from the accepted sockets
   Ptr<Socket>     m_socket;       // Listening socket

@@ -94,7 +94,7 @@ struct NS3Graph {
 };
 
 void cb(uint32_t old, uint32_t neew) {
-  cout << Simulator::Now().GetSeconds() << "\t" << neew << endl;
+  cerr << Simulator::Now().GetSeconds() << "\t" << neew << endl;
 }
 
 NS3Graph::NS3Graph(const RC::Graph &_g) {
@@ -112,7 +112,7 @@ NS3Graph::NS3Graph(const RC::Graph &_g) {
   // Every edge represents a pair of net-devices and 
   // a channel connecting them.  will create new devices
   CsmaHelper ptp;
-  ptp.SetChannelAttribute ("DataRate" , StringValue ("100Mbps"));
+  ptp.SetChannelAttribute ("DataRate" , StringValue ("10Gbps"));
   ptp.SetChannelAttribute ("Delay", StringValue ("300ns"));
   //ptp.SetQueue("ns3::ProxyQueue"); // doesn't work, i dunno why
    
@@ -195,13 +195,13 @@ void setup_cbr_traffic(NS3Graph &g, int from, int to) {
 }
 
 void client_cb(Time start, Time end) {
-  cout << start << ' ' << end << endl;
+  cout << (end - start) << endl;
 }
 
 void setup_experiment(NS3Graph &g) {
   /* Create a trace for host 6 (switch) and queue 5 */
   //g.hosts[6].queues[5]
-  //  ->SetQueueTrace(MakeCallback(&cb));
+  //->SetQueueTrace(MakeCallback(&cb));
   
   /* Setup a tcp packet source at hosts 0 and 1 */
   // setup_cbr_traffic(g, 0, 1);
@@ -213,29 +213,42 @@ void setup_experiment(NS3Graph &g) {
   server.SetAttribute("ResponseSize", RandomVariableValue(ParetoVariable(1000.0)));
   LET(server_app, server.Install(g.hosts[5].node));
 
-  server_app.Start(Seconds(0));
+  server_app.Start(Seconds(0.0));
   server_app.Stop(Seconds(10));
 
   RCClientHelper client;
   client.SetAttribute("ServerAddress", StringValue("10.0.0.6"));
   client.SetAttribute("ServerPort", StringValue("1000"));
-  LET(client_apps, client.Install(g.hosts[1].node));
+  LET(client_apps, 
+      client.Install(NodeContainer(g.hosts[0].node, 
+                                   g.hosts[1].node,
+                                   g.hosts[2].node,
+                                   g.hosts[3].node)));
 
   client_apps.Start(Seconds(0.1));
-  client_apps.Stop(Seconds(10));
+  client_apps.Stop(Seconds(3.2));
 
   DynamicCast<RCClient>(client_apps.Get(0))
     ->SetResponseCallback(MakeCallback(&client_cb));
 
+  DynamicCast<RCClient>(client_apps.Get(1))
+    ->SetResponseCallback(MakeCallback(&client_cb));
+
+  DynamicCast<RCClient>(client_apps.Get(2))
+    ->SetResponseCallback(MakeCallback(&client_cb));
+
+  DynamicCast<RCClient>(client_apps.Get(3))
+    ->SetResponseCallback(MakeCallback(&client_cb));
+
   /* Dump traces */
-  CsmaHelper().EnablePcapAll ("temp", false);
+  //CsmaHelper().EnablePcapAll ("temp", false);
 }
 
 int main(int argc, char *argv[]) {
   RC::Graph g = RC::dumbell(5, 1);
   NS3Graph ns3g(g);
   setup_experiment(ns3g);
-  Simulator::Stop(Seconds(1));
+  Simulator::Stop(Seconds(10));
   Simulator::Run();
   Simulator::Destroy();
   return 0;

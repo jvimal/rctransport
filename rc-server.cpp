@@ -122,13 +122,18 @@ void RCServer::HandleRead (Ptr<Socket> socket)
         }
     }
 
-  // schedule write response
-  int resp_size = 1<<17; //(int)response_size.GetValue();
-  Ptr<Packet> resp = Create<Packet>(resp_size);
-  NS_LOG_INFO("********* sending response of size " << resp_size);
-  int r = socket->Send(resp);
-  NS_LOG_INFO("*** GOT send = " << r);
+  // schedule write response after sometime
+  Simulator::Schedule(Time("1us"), &RCServer::SendResponse, this, socket);
 }
+
+  void RCServer::SendResponse(Ptr<Socket> socket) {
+    NS_LOG_FUNCTION(this << socket);
+    int resp_size = 1<<12;
+    Ptr<Packet> resp = Create<Packet>(resp_size);
+    NS_LOG_INFO("%%%%%%%% ********* sending resp size " << resp_size);
+    int r = socket->Send(resp);
+    NS_LOG_INFO("*** GOT send = " << r);
+  }
 
 void RCServer::HandlePeerClose (Ptr<Socket> socket)
 {

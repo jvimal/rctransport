@@ -25,6 +25,14 @@ namespace ns3 {
       return ApplicationContainer(app);
     }
 
+    ApplicationContainer Install(NodeContainer nc) {
+      ApplicationContainer ret;
+      for(uint32_t i=0;i < nc.GetN(); i++) {
+        ret.Add(Install(nc.Get(i)));
+      }
+      return ret;
+    }
+
   private:
     ObjectFactory m_factory;
   };
@@ -45,6 +53,14 @@ namespace ns3 {
       Ptr<Application> app = m_factory.Create<Application>();
       node->AddApplication(app);
       return ApplicationContainer(app);
+    }
+
+    ApplicationContainer Install(NodeContainer nc) {
+      ApplicationContainer ret;
+      for(uint32_t i=0;i < nc.GetN(); i++) {
+        ret.Add(Install(nc.Get(i)));
+      }
+      return ret;
     }
   private:
     ObjectFactory m_factory;
